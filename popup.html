@@ -1,0 +1,49 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Downloader</title>
+  <link rel="stylesheet" href="popup.css">
+  <script src="popup.js" defer></script>
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <div class="brand-icon">▶</div>
+      <div>
+        <h1>Video Downloader</h1>
+        <p>Media tools for your browser</p>
+      </div>
+    </header>
+
+    <section class="hero">
+      <span class="eyebrow">CURRENT TAB</span>
+      <h2>Find your videos</h2>
+      <p>Scan this page for downloadable media.</p>
+      <button id="scanButton" class="primary">
+        <span>⌕</span> Scan page
+      </button>
+    </section>
+
+    <section class="results">
+      <div class="section-heading">
+        <h3>Detected media</h3>
+        <span id="count" class="count">0</span>
+      </div>
+
+      <p id="status" class="status" role="status">
+        Scan a webpage to get started.
+      </p>
+
+      <div id="videoList" class="video-list"></div>
+    </section>
+
+    <footer>
+      <span class="live-dot"></span>
+      <span>Downloads supported by the current website</span>
+    </footer>
+  </main>
+</body>
+</html>

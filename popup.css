@@ -1,0 +1,183 @@
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 370px;
+  min-height: 450px;
+  margin: 0;
+  background: #0b0d12;
+  color: #f1f3f9;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+}
+
+.app {
+  padding: 20px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #242833;
+}
+
+.brand-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: #7c5cff;
+  font-size: 19px;
+}
+
+h1, h2, h3, p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.header p, .hero p {
+  margin-top: 5px;
+  color: #969cad;
+  font-size: 12px;
+}
+
+.hero {
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px solid #292b3b;
+  border-radius: 17px;
+  background: linear-gradient(145deg, #19172b, #11131b);
+}
+
+.eyebrow {
+  color: #b7a8ff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+
+h2 {
+  margin-top: 12px;
+  font-size: 22px;
+}
+
+.primary {
+  width: 100%;
+  margin-top: 18px;
+  padding: 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #7c5cff;
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:hover {
+  filter: brightness(1.12);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.results {
+  margin-top: 24px;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+h3 {
+  font-size: 13px;
+}
+
+.count {
+  padding: 4px 9px;
+  border-radius: 20px;
+  background: #222431;
+  color: #c7c0ff;
+  font-size: 11px;
+}
+
+.status {
+  margin-top: 12px;
+  color: #969cad;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.video-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.video-card {
+  padding: 12px;
+  border: 1px solid #292d38;
+  border-radius: 12px;
+  background: #141720;
+}
+
+.video-title {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.video-meta {
+  margin-top: 6px;
+  color: #a0a6b7;
+  font-size: 11px;
+}
+
+.download-button {
+  width: 100%;
+  margin-top: 11px;
+  padding: 9px;
+  border: 1px solid #5141a5;
+  border-radius: 8px;
+  background: #282044;
+  color: #ddd5ff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.download-button:disabled {
+  border-color: #343744;
+  background: #20222b;
+  color: #9296a4;
+}
+
+footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 24px;
+  padding-top: 14px;
+  border-top: 1px solid #242833;
+  color: #858b9b;
+  font-size: 10px;
+}
+
+.live-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #48d6a0;
+}

@@ -1,0 +1,19 @@
+
+{
+  "manifest_version": 3,
+  "name": "Video Downloader",
+  "version": "0.1.0",
+  "description": "Detect and download supported video files from webpages.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "downloads"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Video Downloader",
+    "default_popup": "popup.html"
+  }
+}
