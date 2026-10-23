@@ -1,76 +1,82 @@
 
 const scanButton = document.getElementById("scanButton");
-const videoList = document.getElementById("videoList");
-const status = document.getElementById("status");
-const count = document.getElementById("count");
-
+const scanResults = document.getElementById("videoList");
+const statusElement = document.getElementById("status");
 const scannerTab = document.getElementById("scannerTab");
 const downloadsTab = document.getElementById("downloadsTab");
-const scannerView = document.getElementById("scannerView");
-const downloadsView = document.getElementById("downloadsView");
+const scannerPage = document.getElementById("scannerView");
+const downloadsPage = document.getElementById("downloadsView");
+const container = document.getElementById("downloadList");
 
-const downloadBadge = document.getElementById("downloadBadge");
-const downloadStatus = document.getElementById("downloadStatus");
-const downloadList = document.getElementById("downloadList");
-const refreshButton = document.getElementById("refreshButton");
+function setStatus(message) {
+  if (statusElement) statusElement.textContent = message;
+}
 
-let downloads = [];
-let activeFilter = "all";
+function sendMessage(message) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(message, response => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
 
-scannerTab.addEventListener("click", () => showView("scanner"));
-downloadsTab.addEventListener("click", () => showView("downloads"));
+      if (!response) {
+        reject(new Error("The extension returned no response."));
+        return;
+      }
 
-scanButton.addEventListener("click", scanPage);
-refreshButton.addEventListener("click", loadDownloads);
+      if (response.ok === false) {
+        reject(new Error(response.error || "Request failed."));
+        return;
+      }
 
-document.querySelectorAll(".filter").forEach(button => {
-  button.addEventListener("click", () => {
-    activeFilter = button.dataset.filter;
-
-    document.querySelectorAll(".filter").forEach(item => {
-      item.classList.toggle("active", item === button);
+      resolve(response);
     });
-
-    renderDownloads();
   });
-});
-
-chrome.runtime.onMessage.addListener(message => {
-  if (message.action === "DOWNLOADS_UPDATED") {
-    downloads = message.downloads || [];
-    renderDownloads();
-  }
-});
-
-function showView(view) {
-  const showDownloads = view === "downloads";
-
-  scannerView.hidden = showDownloads;
-  downloadsView.hidden = !showDownloads;
-
-  scannerTab.classList.toggle("active", !showDownloads);
-  downloadsTab.classList.toggle("active", showDownloads);
-
-  if (showDownloads) {
-    loadDownloads();
-  }
 }
 
-async function sendMessage(message) {
-  const response = await chrome.runtime.sendMessage(message);
-
-  if (!response?.ok) {
-    throw new Error(response?.error || "The request failed.");
-  }
-
-  return response;
+function isYouTubeHost(hostname) {
+  return hostname === "youtube.com" ||
+    hostname.endsWith(".youtube.com") ||
+    hostname === "youtu.be" ||
+    hostname.endsWith(".youtu.be");
 }
 
-async function scanPage() {
+function switchTab(tab) {
+  const showScanner = tab === "scanner";
+
+  if (scannerPage) scannerPage.hidden = !showScanner;
+  if (downloadsPage) downloadsPage.hidden = showScanner;
+
+  if (scannerTab) scannerTab.classList.toggle("active", showScanner);
+  if (downloadsTab) downloadsTab.classList.toggle("active", !showScanner);
+
+  if (!showScanner) loadDownloads();
+}
+
+if (scannerTab) {
+  scannerTab.addEventListener("click", () => switchTab("scanner"));
+}
+
+if (downloadsTab) {
+  downloadsTab.addEventListener("click", () => switchTab("downloads"));
+}
+
+if (scanButton) {
+  scanButton.addEventListener("click", scanVideos);
+} else {
+  console.error("Scan button not found. Check its ID in popup.html.");
+}
+
+async function scanVideos() {
+  if (!scanResults) {
+    setStatus("Scan results container is missing. Check popup.html.");
+    return;
+  }
+
   scanButton.disabled = true;
-  videoList.replaceChildren();
-  count.textContent = "0";
-  status.textContent = "Scanning for media...";
+  setStatus("Scanning this page...");
+  scanResults.replaceChildren();
 
   try {
     const [tab] = await chrome.tabs.query({
@@ -78,50 +84,83 @@ async function scanPage() {
       currentWindow: true
     });
 
-    if (!tab?.id || !tab.url?.startsWith("http")) {
-      throw new Error("Open a regular website first.");
+    if (!tab || !tab.id || !tab.url ||
+        !/^https?:/.test(tab.url)) {
+      throw new Error(
+        "Open a normal website first. Chrome internal pages cannot be scanned."
+      );
     }
 
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      files: ["content.js"]
-    });
+    let response;
 
-    const response = await chrome.tabs.sendMessage(tab.id, {
-      action: "SCAN_VIDEOS"
-    });
+    try {
+      response = await chrome.tabs.sendMessage(tab.id, {
+        action: "SCAN_VIDEOS"
+      });
+    } catch {
+      // The content script may not have loaded yet.
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ["content.js"]
+      });
+
+      response = await chrome.tabs.sendMessage(tab.id, {
+        action: "SCAN_VIDEOS"
+      });
+    }
 
     const videos = response?.videos || [];
-    count.textContent = String(videos.length);
 
     if (!videos.length) {
-      status.textContent = "No recognizable media found.";
+      setStatus("No videos found on this page.");
       return;
     }
 
-    status.textContent =
-      `Found ${videos.length} media resource(s).`;
+    for (const video of videos) {
+      scanResults.appendChild(createVideoCard(video, tab.url));
+    }
 
-    videos.forEach(video => {
-      videoList.appendChild(createVideoCard(video, tab.url));
-    });
+    setStatus(`Found ${videos.length} video resource(s).`);
   } catch (error) {
-    status.textContent = error.message || "Could not scan this page.";
+    console.error("Video scan failed:", error);
+    setStatus(error.message || "Scanning failed. Check the console.");
   } finally {
     scanButton.disabled = false;
   }
 }
 
-function isYouTubeHost(hostname) {
-  const host = hostname.toLowerCase();
+async function loadDownloads() {
+  const container = document.getElementById("downloadsList");
+  if (!container) return;
 
-  return (
-    host === "youtube.com" ||
-    host.endsWith(".youtube.com") ||
-    host === "youtu.be" ||
-    host === "youtube-nocookie.com" ||
-    host.endsWith(".youtube-nocookie.com")
-  );
+  try {
+    const response = await sendMessage({ action: "GET_DOWNLOADS" });
+    const downloads = response.downloads || [];
+
+    container.replaceChildren();
+
+    if (!downloads.length) {
+      container.textContent = "No downloads yet.";
+      return;
+    }
+
+    for (const item of downloads) {
+      const row = document.createElement("div");
+      row.className = "download-item";
+
+      const name = document.createElement("div");
+      name.textContent = item.filename || item.url || "Video download";
+
+      const state = document.createElement("div");
+      state.textContent = item.state || "Unknown";
+
+      row.append(name, state);
+      container.appendChild(row);
+    }
+  } catch (error) {
+    console.error("Could not load downloads:", error);
+    container.textContent = "Could not load downloads. Check the extension errors.";
+  }
 }
 
 function createVideoCard(video, pageUrl) {
@@ -130,41 +169,66 @@ function createVideoCard(video, pageUrl) {
 
   const title = document.createElement("div");
   title.className = "video-title";
-  title.textContent = video.label;
+  title.textContent = video.label || "Detected video";
 
   const meta = document.createElement("div");
   meta.className = "video-meta";
-  meta.textContent = `${video.format} · ${video.duration}`;
+  meta.textContent = `${video.format || "Unknown format"} · ${video.duration || "Duration unknown"}`;
 
   const details = document.createElement("p");
   details.className = "video-meta";
   details.textContent = video.reason ||
-    (video.downloadable ? "Direct media resource" : "Not directly downloadable");
+    (video.downloadable ? "Direct media resource" : "Streaming resource");
 
   const button = document.createElement("button");
   button.className = "download-button";
 
-  let restricted = true;
+  let pageHost = "";
+  let mediaHost = "";
 
   try {
-    restricted = isYouTubeHost(new URL(pageUrl).hostname) ||
-      isYouTubeHost(new URL(video.url).hostname);
-  } catch {
-    restricted = true;
-  }
+    pageHost = new URL(pageUrl).hostname;
+    mediaHost = new URL(video.url).hostname;
+  } catch {}
 
-  if (restricted) {
+  if (isYouTubeHost(pageHost) || isYouTubeHost(mediaHost)) {
     button.textContent = "YouTube downloads are not supported";
     button.disabled = true;
+  } else if (video.format === "HLS stream") {
+    button.textContent = "Download authorized HLS";
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+
+      try {
+        const mediaOrigin = new URL(video.url).origin;
+        const granted = await chrome.permissions.request({
+          origins: [`${mediaOrigin}/*`]
+        });
+
+        if (!granted) {
+          throw new Error("Media-site permission was not granted.");
+        }
+
+        await sendMessage({
+          action: "DOWNLOAD_HLS",
+          url: video.url,
+          pageUrl
+        });
+
+        button.textContent = "Stream download started ✓";
+      } catch (error) {
+        button.textContent = error.message || "HLS download failed";
+        button.disabled = false;
+      }
+    });
   } else if (!video.downloadable) {
-    button.textContent = "Not a direct video file";
+    button.textContent = "Not supported yet";
     button.disabled = true;
   } else {
     button.textContent = "Download video";
 
     button.addEventListener("click", async () => {
       button.disabled = true;
-      button.textContent = "Starting...";
 
       try {
         await sendMessage({
@@ -186,235 +250,14 @@ function createVideoCard(video, pageUrl) {
   return card;
 }
 
-async function loadDownloads() {
-  downloadStatus.textContent = "Refreshing download history...";
-  refreshButton.disabled = true;
-
-  try {
-    const response = await sendMessage({
-      action: "GET_DOWNLOADS"
-    });
-
-    downloads = response.downloads || [];
-    renderDownloads();
-  } catch (error) {
-    downloadStatus.textContent =
-      error.message || "Could not load downloads.";
-  } finally {
-    refreshButton.disabled = false;
-  }
-}
-
-function getFilteredDownloads() {
-  if (activeFilter === "in_progress") {
-    return downloads.filter(item => item.state === "in_progress");
+chrome.runtime.onMessage.addListener(message => {
+  if (message.action === "DOWNLOADS_UPDATED") {
+    loadDownloads();
   }
 
-  if (activeFilter === "complete") {
-    return downloads.filter(item => item.state === "complete");
+  if (message.action === "HLS_PROGRESS") {
+    setStatus(
+      `Processing HLS segments: ${message.completed}/${message.total}`
+    );
   }
-
-  if (activeFilter === "interrupted") {
-    return downloads.filter(item => item.state === "interrupted");
-  }
-
-  return downloads;
-}
-
-function formatBytes(bytes) {
-  if (!Number.isFinite(bytes) || bytes < 0) {
-    return "Unknown size";
-  }
-
-  if (bytes < 1024) {
-    return `${bytes} B`;
-  }
-
-  const units = ["KB", "MB", "GB", "TB"];
-  let value = bytes / 1024;
-  let index = 0;
-
-  while (value >= 1024 && index < units.length - 1) {
-    value /= 1024;
-    index++;
-  }
-
-  return `${value.toFixed(1)} ${units[index]}`;
-}
-
-function getState(item) {
-  if (item.state === "complete") {
-    return { label: "Completed", className: "complete" };
-  }
-
-  if (item.state === "interrupted") {
-    return { label: "Interrupted", className: "interrupted" };
-  }
-
-  if (item.paused) {
-    return { label: "Paused", className: "progress" };
-  }
-
-  return { label: "In progress", className: "progress" };
-}
-
-function renderDownloads() {
-  const activeCount = downloads.filter(item =>
-    item.state === "in_progress"
-  ).length;
-
-  downloadBadge.textContent = String(activeCount);
-  downloadList.replaceChildren();
-
-  const filtered = getFilteredDownloads();
-
-  if (!filtered.length) {
-    downloadStatus.textContent = downloads.length
-      ? "No downloads match this filter."
-      : "No downloads yet. Start one from the Scanner tab.";
-    return;
-  }
-
-  downloadStatus.textContent =
-    `${filtered.length} download(s) shown.`;
-
-  filtered.forEach(item => {
-    downloadList.appendChild(createDownloadCard(item));
-  });
-}
-
-function createDownloadCard(item) {
-  const card = document.createElement("article");
-  card.className = "download-card";
-
-  const top = document.createElement("div");
-  top.className = "download-topline";
-
-  const name = document.createElement("div");
-  name.className = "download-name";
-
-  // Show only the filename, not the entire local path.
-  const parts = (item.filename || "").split(/[\\/]/);
-  name.textContent = parts[parts.length - 1] || "Video download";
-
-  const state = getState(item);
-  const badge = document.createElement("span");
-  badge.className = `state ${state.className}`;
-  badge.textContent = state.label;
-
-  top.append(name, badge);
-
-  const meta = document.createElement("div");
-  meta.className = "download-meta";
-
-  const received = formatBytes(item.bytesReceived);
-  const total = formatBytes(item.totalBytes);
-
-  if (item.totalBytes > 0) {
-    meta.textContent =
-      `${received} of ${total}` +
-      (item.progress !== null ? ` · ${item.progress}%` : "");
-  } else {
-    meta.textContent = `${received} received · Total size unknown`;
-  }
-
-  card.append(top, meta);
-
-  if (item.state === "in_progress") {
-    const track = document.createElement("div");
-    track.className = "progress-track";
-
-    const fill = document.createElement("div");
-    fill.className = "progress-fill";
-    fill.style.width = `${item.progress ?? 0}%`;
-
-    track.appendChild(fill);
-    card.appendChild(track);
-  }
-
-  if (item.state === "interrupted" && item.error) {
-    const error = document.createElement("p");
-    error.className = "download-meta";
-    error.textContent = `Reason: ${item.error}`;
-    card.appendChild(error);
-  }
-
-  const actions = document.createElement("div");
-  actions.className = "download-actions";
-
-  if (item.state === "in_progress") {
-    const cancelButton = document.createElement("button");
-    cancelButton.className = "action-button secondary";
-    cancelButton.textContent = "Cancel";
-
-    cancelButton.addEventListener("click", async () => {
-      cancelButton.disabled = true;
-      cancelButton.textContent = "Cancelling...";
-
-      try {
-        await sendMessage({
-          action: "CANCEL_DOWNLOAD",
-          id: item.id
-        });
-
-        await loadDownloads();
-      } catch (error) {
-        cancelButton.textContent = error.message || "Cancel failed";
-        cancelButton.disabled = false;
-      }
-    });
-
-    actions.appendChild(cancelButton);
-  }
-
-  if (item.state === "complete") {
-    const openButton = document.createElement("button");
-    openButton.className = "action-button";
-    openButton.textContent = "Open file";
-
-    openButton.addEventListener("click", async () => {
-      openButton.disabled = true;
-
-      try {
-        await sendMessage({
-          action: "OPEN_DOWNLOAD",
-          id: item.id
-        });
-      } catch (error) {
-        openButton.textContent = error.message || "Could not open";
-      } finally {
-        openButton.disabled = false;
-      }
-    });
-
-    const showButton = document.createElement("button");
-    showButton.className = "action-button secondary";
-    showButton.textContent = "Show in folder";
-
-    showButton.addEventListener("click", async () => {
-      showButton.disabled = true;
-
-      try {
-        await sendMessage({
-          action: "SHOW_DOWNLOAD",
-          id: item.id
-        });
-      } catch (error) {
-        showButton.textContent = error.message || "Could not show";
-      } finally {
-        showButton.disabled = false;
-      }
-    });
-
-    actions.append(openButton, showButton);
-  }
-
-  if (actions.childElementCount) {
-    card.appendChild(actions);
-  }
-
-  return card;
-}
-
-// Load history whenever the popup opens.
-loadDownloads();
+});

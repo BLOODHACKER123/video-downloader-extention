@@ -18,6 +18,25 @@ function sendToPopup(message) {
   chrome.runtime.sendMessage(message).catch(() => {});
 }
 
+
+async function ensureOffscreenDocument() {
+  const url = chrome.runtime.getURL("offscreen.html");
+
+  const contexts = await chrome.runtime.getContexts({
+    contextTypes: ["OFFSCREEN_DOCUMENT"],
+    documentUrls: [url]
+  });
+
+  if (contexts.length === 0) {
+    await chrome.offscreen.createDocument({
+      url: "offscreen.html",
+      reasons: ["BLOBS"],
+      justification: "Assemble authorized, unencrypted HLS video segments into a downloadable file."
+    });
+  }
+}
+
+
 async function getTrackedIds() {
   const result = await chrome.storage.local.get(DOWNLOAD_IDS_KEY);
   return result[DOWNLOAD_IDS_KEY] || [];
@@ -120,6 +139,94 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     return true;
   }
+
+  
+  if (message.action === "DOWNLOAD_HLS") {
+    (async () => {
+      let mediaUrl;
+      let pageUrl;
+      let blobUrl;
+
+      try {
+        mediaUrl = new URL(message.url);
+        pageUrl = new URL(message.pageUrl);
+
+        if (
+          !["http:", "https:"].includes(mediaUrl.protocol) ||
+          !["http:", "https:"].includes(pageUrl.protocol)
+        ) {
+          throw new Error("Only HTTP and HTTPS streams are supported.");
+        }
+
+        if (
+          isYouTubeHost(mediaUrl.hostname) ||
+          isYouTubeHost(pageUrl.hostname)
+        ) {
+          throw new Error("YouTube downloads are not supported.");
+        }
+
+        if (!/\.m3u8$/i.test(mediaUrl.pathname)) {
+          throw new Error("The resource is not an HLS playlist.");
+        }
+
+        const originPermission = {
+          origins: [`${mediaUrl.origin}/*`]
+        };
+
+        if (!await chrome.permissions.contains(originPermission)) {
+          throw new Error(
+            "Permission for this media origin has not been granted."
+          );
+        }
+
+        await ensureOffscreenDocument();
+
+        const result = await chrome.runtime.sendMessage({
+          action: "PROCESS_HLS",
+          url: mediaUrl.href
+        });
+
+        if (!result?.ok) {
+          throw new Error(result?.error || "Could not process HLS.");
+        }
+
+        blobUrl = result.blobUrl;
+
+        const id = await chrome.downloads.download({
+          url: blobUrl,
+          filename: result.filename || "video-stream.ts",
+          saveAs: true
+        });
+
+        await saveTrackedId(id);
+
+        sendResponse({
+          ok: true,
+          downloadId: id
+        });
+
+        await refreshPopup();
+      } catch (error) {
+        sendResponse({
+          ok: false,
+          error: error.message || "HLS download failed."
+        });
+      } finally {
+        // Give Chrome time to consume the blob URL before releasing it.
+        if (blobUrl) {
+          setTimeout(() => {
+            chrome.runtime.sendMessage({
+              action: "RELEASE_HLS_BLOB",
+              blobUrl
+            }).catch(() => {});
+          }, 120000);
+        }
+      }
+    })();
+
+    return true;
+  }
+
 
   if (message.action === "DOWNLOAD_VIDEO") {
     (async () => {
