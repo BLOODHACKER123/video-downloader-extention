@@ -12,37 +12,67 @@
   <main class="app">
     <header class="header">
       <div class="brand-icon">▶</div>
-      <div>
+      <div class="brand-copy">
         <h1>Video Downloader</h1>
         <p>Media tools for your browser</p>
       </div>
     </header>
 
-    <section class="hero">
-      <span class="eyebrow">CURRENT TAB</span>
-      <h2>Find your videos</h2>
-      <p>Scan this page for downloadable media.</p>
-      <button id="scanButton" class="primary">
-        <span>⌕</span> Scan page
+    <nav class="nav-tabs" aria-label="Main navigation">
+      <button id="scannerTab" class="nav-tab active">Scanner</button>
+      <button id="downloadsTab" class="nav-tab">
+        Downloads <span id="downloadBadge">0</span>
       </button>
+    </nav>
+
+    <section id="scannerView">
+      <section class="hero">
+        <span class="eyebrow">CURRENT TAB</span>
+        <h2>Find your videos</h2>
+        <p>Scan this page for supported media.</p>
+        <button id="scanButton" class="primary">⌕ Scan page</button>
+      </section>
+
+      <section class="results">
+        <div class="section-heading">
+          <h3>Detected media</h3>
+          <span id="count" class="count">0</span>
+        </div>
+
+        <p id="status" class="status" role="status">
+          Scan a webpage to get started.
+        </p>
+
+        <div id="videoList" class="list"></div>
+      </section>
     </section>
 
-    <section class="results">
-      <div class="section-heading">
-        <h3>Detected media</h3>
-        <span id="count" class="count">0</span>
+    <section id="downloadsView" hidden>
+      <div class="manager-heading">
+        <div>
+          <span class="eyebrow">YOUR ACTIVITY</span>
+          <h2>Downloads</h2>
+        </div>
+        <button id="refreshButton" class="icon-button" title="Refresh downloads" aria-label="Refresh downloads">↻</button>
       </div>
 
-      <p id="status" class="status" role="status">
-        Scan a webpage to get started.
+      <div class="filters" aria-label="Filter downloads">
+        <button class="filter active" data-filter="all">All</button>
+        <button class="filter" data-filter="in_progress">Active</button>
+        <button class="filter" data-filter="complete">Completed</button>
+        <button class="filter" data-filter="interrupted">Failed</button>
+      </div>
+
+      <p id="downloadStatus" class="status" role="status">
+        Loading download history...
       </p>
 
-      <div id="videoList" class="video-list"></div>
+      <div id="downloadList" class="list"></div>
     </section>
 
     <footer>
       <span class="live-dot"></span>
-      <span>Downloads supported by the current website</span>
+      <span>Powered by Chrome Downloads</span>
     </footer>
   </main>
 </body>

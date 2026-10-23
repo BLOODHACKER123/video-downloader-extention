@@ -2,12 +2,13 @@
 {
   "manifest_version": 3,
   "name": "Video Downloader",
-  "version": "0.1.0",
-  "description": "Detect and download supported video files from webpages.",
+  "version": "0.2.0",
+  "description": "Detect supported videos and manage downloads.",
   "permissions": [
     "activeTab",
     "scripting",
-    "downloads"
+    "downloads",
+    "storage"
   ],
   "background": {
     "service_worker": "background.js"
