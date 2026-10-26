@@ -225,6 +225,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     })();
 
     return true;
+  
   }
 
 
@@ -345,4 +346,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     return true;
   }
+
+  if (message.action === "GET_COMPLETED_DOWNLOAD") {
+  (async () => {
+    const ids = await getTrackedIds();
+
+    if (!ids.includes(message.id)) {
+      throw new Error("This download is not managed by the extension.");
+    }
+
+    const results = await chrome.downloads.search({
+      id: message.id
+    });
+
+    const item = results[0];
+
+    if (!item || item.state !== "complete") {
+      throw new Error("Only completed downloads can be opened.");
+    }
+
+    sendResponse({
+      ok: true,
+      url: item.url
+    });
+  })().catch(error => {
+    sendResponse({
+      ok: false,
+      error: error.message || "Could not retrieve the download."
+    });
+  });
+
+  return true;
+}
 });
